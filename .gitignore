@@ -1,0 +1,6 @@
+data/*
+*.fastq.gz
+*.png
+.env
+*.md5
+*.BAM
