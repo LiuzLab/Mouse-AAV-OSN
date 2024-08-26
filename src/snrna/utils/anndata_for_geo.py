@@ -6,70 +6,69 @@ import gzip
 import os
 import argparse
 
+def save_matrix(matrix, obs_names, var_names, file_prefix, chunk_size):
+    if sp.issparse(matrix):
+        matrix = matrix.tocsr()
+    
+    n_cells, n_genes = matrix.shape
+    for i in range(0, n_cells, chunk_size):
+        print(f"Processing cells {i} to {min(i+chunk_size, n_cells)}...")
+        chunk = matrix[i:i+chunk_size]
+        if sp.issparse(chunk):
+            chunk = chunk.toarray()
+        df = pd.DataFrame(chunk, index=obs_names[i:i+chunk_size], columns=var_names)
+        with gzip.open(f"{file_prefix}_chunk_{i//chunk_size}.txt.gz", 'wt') as f:
+            df.to_csv(f, sep='\t')
+
 def prepare_anndata_for_geo(input_file, output_dir, chunk_size=1000000):
-    # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # Read the AnnData file
     print(f"Reading {input_file}...")
     adata = anndata.read_h5ad(input_file)
     
     output_prefix = os.path.join(output_dir, "geo_submission")
     
-    # Save obs (cell metadata)
     print("Saving cell metadata...")
     with gzip.open(f"{output_prefix}_obs.txt.gz", 'wt') as f:
         adata.obs.to_csv(f, sep='\t')
     
-    # Save var (gene metadata)
     print("Saving gene metadata...")
     with gzip.open(f"{output_prefix}_var.txt.gz", 'wt') as f:
         adata.var.to_csv(f, sep='\t')
     
-    # Save X (count matrix) in chunks
     print("Saving count matrix...")
-    if sp.issparse(adata.X):
-        X = adata.X.tocsr()
-    else:
-        X = adata.X
+    save_matrix(adata.X, adata.obs_names, adata.var_names, f"{output_prefix}_counts", chunk_size)
     
-    n_cells, n_genes = X.shape
-    for i in range(0, n_cells, chunk_size):
-        print(f"Processing cells {i} to {min(i+chunk_size, n_cells)}...")
-        chunk = X[i:i+chunk_size]
-        if sp.issparse(chunk):
-            chunk = chunk.toarray()
-        df = pd.DataFrame(chunk, index=adata.obs_names[i:i+chunk_size], columns=adata.var_names)
-        with gzip.open(f"{output_prefix}_counts_chunk_{i//chunk_size}.txt.gz", 'wt') as f:
-            df.to_csv(f, sep='\t')
-    
-    # Save layers (if present)
     for layer_name, layer_data in adata.layers.items():
         print(f"Saving layer: {layer_name}...")
-        if sp.issparse(layer_data):
-            layer_data = layer_data.tocsr()
-        for i in range(0, n_cells, chunk_size):
-            print(f"Processing cells {i} to {min(i+chunk_size, n_cells)}...")
-            chunk = layer_data[i:i+chunk_size]
-            if sp.issparse(chunk):
-                chunk = chunk.toarray()
-            df = pd.DataFrame(chunk, index=adata.obs_names[i:i+chunk_size], columns=adata.var_names)
-            with gzip.open(f"{output_prefix}_{layer_name}_chunk_{i//chunk_size}.txt.gz", 'wt') as f:
-                df.to_csv(f, sep='\t')
+        save_matrix(layer_data, adata.obs_names, adata.var_names, f"{output_prefix}_{layer_name}", chunk_size)
 
-    # Create a README file
+    if adata.raw is not None:
+        print("Saving raw data...")
+        raw_prefix = f"{output_prefix}_raw"
+        
+        print("Saving raw var metadata...")
+        with gzip.open(f"{raw_prefix}_var.txt.gz", 'wt') as f:
+            adata.raw.var.to_csv(f, sep='\t')
+        
+        print("Saving raw count matrix...")
+        save_matrix(adata.raw.X, adata.obs_names, adata.raw.var_names, f"{raw_prefix}_counts", chunk_size)
+
     print("Creating README file...")
     with open(f"{output_prefix}_README.txt", 'w') as f:
         f.write("Dataset prepared for GEO submission\n\n")
         f.write(f"Original file: {input_file}\n")
-        f.write(f"Number of cells: {n_cells}\n")
-        f.write(f"Number of genes: {n_genes}\n")
+        f.write(f"Number of cells: {adata.n_obs}\n")
+        f.write(f"Number of genes: {adata.n_vars}\n")
         f.write(f"Files:\n")
         f.write(f"- geo_submission_obs.txt.gz: Cell metadata\n")
         f.write(f"- geo_submission_var.txt.gz: Gene metadata\n")
         f.write(f"- geo_submission_counts_chunk_*.txt.gz: Count matrix (split into chunks)\n")
         for layer_name in adata.layers.keys():
             f.write(f"- geo_submission_{layer_name}_chunk_*.txt.gz: {layer_name} layer data (split into chunks)\n")
+        if adata.raw is not None:
+            f.write(f"- geo_submission_raw_var.txt.gz: Raw gene metadata\n")
+            f.write(f"- geo_submission_raw_counts_chunk_*.txt.gz: Raw count matrix (split into chunks)\n")
 
     print("Conversion completed successfully!")
 
