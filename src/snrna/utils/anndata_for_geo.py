@@ -20,13 +20,13 @@ def save_matrix(matrix, obs_names, var_names, file_prefix, chunk_size):
         with gzip.open(f"{file_prefix}_chunk_{i//chunk_size}.txt.gz", 'wt') as f:
             df.to_csv(f, sep='\t')
 
-def prepare_anndata_for_geo(input_file, output_dir, chunk_size=1000000):
+def prepare_anndata_for_geo(input_file, output_dir, prefix='', chunk_size=1000000):
     os.makedirs(output_dir, exist_ok=True)
     
     print(f"Reading {input_file}...")
     adata = anndata.read_h5ad(input_file)
     
-    output_prefix = os.path.join(output_dir, "geo_submission")
+    output_prefix = os.path.join(output_dir, f"{prefix}geo_submission" if prefix else "geo_submission")
     
     print("Saving cell metadata...")
     with gzip.open(f"{output_prefix}_obs.txt.gz", 'wt') as f:
@@ -61,14 +61,14 @@ def prepare_anndata_for_geo(input_file, output_dir, chunk_size=1000000):
         f.write(f"Number of cells: {adata.n_obs}\n")
         f.write(f"Number of genes: {adata.n_vars}\n")
         f.write(f"Files:\n")
-        f.write(f"- geo_submission_obs.txt.gz: Cell metadata\n")
-        f.write(f"- geo_submission_var.txt.gz: Gene metadata\n")
-        f.write(f"- geo_submission_counts_chunk_*.txt.gz: Count matrix (split into chunks)\n")
+        f.write(f"- {prefix}geo_submission_obs.txt.gz: Cell metadata\n")
+        f.write(f"- {prefix}geo_submission_var.txt.gz: Gene metadata\n")
+        f.write(f"- {prefix}geo_submission_counts_chunk_*.txt.gz: Count matrix (split into chunks)\n")
         for layer_name in adata.layers.keys():
-            f.write(f"- geo_submission_{layer_name}_chunk_*.txt.gz: {layer_name} layer data (split into chunks)\n")
+            f.write(f"- {prefix}geo_submission_{layer_name}_chunk_*.txt.gz: {layer_name} layer data (split into chunks)\n")
         if adata.raw is not None:
-            f.write(f"- geo_submission_raw_var.txt.gz: Raw gene metadata\n")
-            f.write(f"- geo_submission_raw_counts_chunk_*.txt.gz: Raw count matrix (split into chunks)\n")
+            f.write(f"- {prefix}geo_submission_raw_var.txt.gz: Raw gene metadata\n")
+            f.write(f"- {prefix}geo_submission_raw_counts_chunk_*.txt.gz: Raw count matrix (split into chunks)\n")
 
     print("Conversion completed successfully!")
 
@@ -76,8 +76,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert AnnData to GEO submission format")
     parser.add_argument("input_file", help="Path to the input .h5ad file")
     parser.add_argument("output_dir", help="Path to the output directory")
+    parser.add_argument("--prefix", default='', help="Prefix to add to output files")
     parser.add_argument("--chunk_size", type=int, default=1000000, help="Chunk size for splitting large matrices (default: 1,000,000)")
     
     args = parser.parse_args()
     
-    prepare_anndata_for_geo(args.input_file, args.output_dir, args.chunk_size)
+    prepare_anndata_for_geo(args.input_file, args.output_dir, args.prefix, args.chunk_size)
