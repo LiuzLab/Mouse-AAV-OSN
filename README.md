@@ -1,4 +1,4 @@
-# Mouse-AAV-OSN [![DOI](https://zenodo.org/badge/836991156.svg)](https://zenodo.org/doi/10.5281/zenodo.13376699)
+# Mouse-AAV-OSN [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13376699.svg)](https://doi.org/10.5281/zenodo.13376699)
 Computational analysis for "Comparative Analysis of AAV Serotypes for the Transduction of Olfactory Sensory Neurons" by Belfort and Jia et al. 2024
 
 # GEO Submission Scripts Documentation: `src/snrna/utils`
